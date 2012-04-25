@@ -788,7 +788,52 @@ class DocumentPersister
         if ($query) {
             foreach ($query as $key => $value) {
                 if (isset($key[0]) && $key[0] === $this->cmd && is_array($value)) {
-                    $newQuery[$key] = $this->prepareQuery($value);
+                    $newQuery[$key] = $this->prepareSubQuery($value);
+                } else {
+                    $newQuery[$key] = $this->prepareQueryElement($key, $value, null, true);
+                }
+            }
+            $newQuery = $this->convertTypes($newQuery);
+        }
+        return $newQuery;
+    }
+    
+    /**
+     * Prepares a new object array by converting the portable Doctrine types to the types mongodb expects.
+     *
+     * @param string|array newObjy
+     * @return array $newQuery
+     */
+    public function prepareNewObj($newObj)
+    {
+        $prepared = array();
+        if ($newObj) {
+            foreach ($newObj as $key => $value) {
+                if (isset($key[0]) && $key[0] === $this->cmd && is_array($value)) {
+                    $prepared[$key] = $this->prepareSubQuery($value);
+                } else {
+                    $prepared[$key] = $this->prepareQueryElement($key, $value, null, true);
+                }
+            }
+            $prepared = $this->convertTypes($prepared);
+        }
+        return $prepared;
+    }
+
+    /**
+     * Convert a subquery.
+     *
+     * @see prepareQuery()
+     * @param array $query The query to convert.
+     * @return array $newQuery The converted query.
+     */
+    private function prepareSubQuery($query)
+    {
+        $newQuery = array();
+        if ($query) {
+            foreach ($query as $key => $value) {
+                if (isset($key[0]) && $key[0] === $this->cmd && is_array($value)) {
+                    $newQuery[$key] = $this->prepareSubQuery($value);
                 } else {
                     $newQuery[$key] = $this->prepareQueryElement($key, $value, null, true);
                 }
@@ -898,8 +943,12 @@ class DocumentPersister
             $fieldName = $mapping['name'];
 
             if ($prepareValue === true && isset($mapping['reference']) && isset($mapping['simple']) && $mapping['simple']) {
-                $targetClass = $this->dm->getClassMetadata($mapping['targetDocument']);
-                $value = $targetClass->getDatabaseIdentifierValue($value);
+                if (is_array($value)) {
+                    $value = $this->prepareSubQuery($value);
+                } else {
+                    $targetClass = $this->dm->getClassMetadata($mapping['targetDocument']);
+                    $value = $targetClass->getDatabaseIdentifierValue($value);
+                }
             }
 
         // Process identifier

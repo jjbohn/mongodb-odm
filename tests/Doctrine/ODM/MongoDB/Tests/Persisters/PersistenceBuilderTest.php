@@ -25,6 +25,49 @@ class PersistenceBuilderTest extends BaseTest
         parent::tearDown();
     }
 
+    public function testPrepareUpdateDataDoesNotIncludeId()
+    {
+        $article = new CmsArticle();
+        $article->topic = 'persistence builder test';
+        $this->dm->persist($article);
+        $this->dm->flush();
+        $this->dm->clear();
+
+        $article = $this->dm->getRepository(get_class($article))->find($article->id);
+        $article->id = null;
+        $article->topic = 'test';
+
+        $this->uow->computeChangeSets();
+        $data = $this->pb->prepareUpdateData($article);
+        $this->assertFalse(isset($data['$unset']['_id']));
+    }
+
+    public function testFindWithOrOnCollectionWithDiscriminatorMap()
+    {
+        $id = '4f28aa84acee41388900000a';
+        $ids = array($id);
+
+        /**
+         * @var \Doctrine\ODM\MongoDB\Query\Builder $qb
+         */
+        $qb = $this->dm->createQueryBuilder('Documents\Functional\SameCollection1');
+        $qb
+            ->addOr($qb->expr()->field('id')->in($ids))
+            ->select('id')->hydrate(false);
+        /**
+         * @var \Doctrine\ODM\MongoDB\Query\Query $query
+         * @var \Doctrine\ODM\MongoDB\Cursor $results
+         */
+        $query = $qb->getQuery();
+        $results = $query->execute();
+        $debug = $query->debug();
+
+        $this->assertEquals($id, (string) current($debug['$or'][0]['_id']['$in']));
+
+        $this->assertInstanceOf('Doctrine\MongoDB\Cursor', $results);
+        $this->assertEquals(0, $query->count());
+    }
+
     public function testPrepareInsertDataWithCreatedReferenceOne()
     {
         $article = new CmsArticle();
